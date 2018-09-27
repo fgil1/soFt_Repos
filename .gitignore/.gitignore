@@ -1,0 +1,68 @@
+# first publication
+# Franco Gil ~ web crawling
+
+import scrapy
+from scrapy.crawler import CrawlerProcess
+from scrapy.utils.response import open_in_browser
+import sys
+import csv
+
+class MySpider(scrapy.Spider):
+	name='ocurrences'
+	cont_1='https://arxiv.org/'
+	word=sys.argv[1]
+	size=sys.argv[2]
+	search='https://arxiv.org/search/advanced?advanced=1&terms-0-operator=AND&terms-0-term=%s&terms-0-field=title&classification-computer_science=y&classification-physics_archives=all&date-filter_by=all_dates&date-year=&date-from_date=&date-to_date=&date-date_type=submitted_date&abstracts=hide&size=%s&order=-announced_date_first' %(word, size)
+	start_urls=[]
+	start_urls.append(search)
+	go=1
+	total_results=0
+	ttl_crawl=0
+	out=[]
+
+	def parse(self, response):
+		l=response.xpath('//h1[@class="title is-clearfix"]/text()').extract() 
+		#print l
+		l[0]=l[0][:-12]
+		a=['\n', 'S','h', 'w', 'o','i', 'n', 'g', 'r', 'e', 's', 'u', 'l', 't' ,'-', ',']
+		for i in range(len(a)):
+			l[0]=l[0].replace(a[i], '')
+		i=l[0].find('f ')
+		self.ttl_results=int(l[0][i+2:])
+		l=response.xpath('//p[@class="title is-5 mathjax"]/text()').extract()
+		self.out=self.emplace(l, self.out)
+		x=response.url+'&start=%s' %self.size
+		yield scrapy.Request(x, callback=self.next)
+
+	def next(self, response):
+		if self.go-1 < 4:
+			l=response.xpath('//p[@class="title is-5 mathjax"]/text()').extract()
+			self.out=self.emplace(l, self.out)
+			before=str( int(self.size)*(self.go) )
+			after=str( int(self.size)*(self.go+1) )
+			self.go+=1
+			x=response.url
+			x=x.replace('&start='+before, '&start='+after)
+			yield scrapy.Request(x, callback=self.next)
+		else:
+			with open('f1.csv', 'wb') as f:
+				f.write('id,title\n')
+				for i in range(len(self.out)):
+					f.write(str(i)+', ')
+					x=self.out[i].replace(',', '')
+					f.write(x+'\n')
+
+	def emplace(self, l, out):
+		i=0
+		while i < (len(l)):
+			if i+1 < len(l):
+				out.append( (l[i]+'data'+l[i+1]).replace('\n', '') )
+			i+=2
+		return out
+ 
+process = CrawlerProcess({
+    'User-Agent':'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, ''like Gecko) Chrome/45.0.2454.85 Safari/537.36'
+})
+
+process.crawl(MySpider)
+process.start()
